@@ -1,0 +1,109 @@
+name: review-gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [dev, qa, main]
+  pull_request_review:
+    types: [submitted, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_run:
+    workflows: [pr-checks]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+  actions: write
+
+concurrency:
+  group: review-gate-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Review gate
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        env:
+          REQUIRED_APPROVALS: '4'
+          MIN_COMMENT_LENGTH: '15'
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const REQUIRED = Number(process.env.REQUIRED_APPROVALS);
+            const MIN_LENGTH = Number(process.env.MIN_COMMENT_LENGTH);
+
+            const number =
+              context.payload.pull_request?.number ??
+              context.payload.issue?.number ??
+              context.payload.workflow_run?.pull_requests?.[0]?.number;
+            if (!number) return;
+
+            const getPr = async () =>
+              (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+
+            let pr = await getPr();
+            if (pr.state !== 'open') return;
+
+            const setStatus = (state, description) =>
+              github.rest.repos.createCommitStatus({
+                owner, repo, sha: pr.head.sha, state,
+                context: 'review-gate',
+                description: description.slice(0, 140),
+              });
+
+            const comment = (body) =>
+              github.rest.issues.createComment({ owner, repo, issue_number: number, body });
+
+            if (pr.head.repo?.full_name !== `${owner}/${repo}`) {
+              await setStatus('failure', 'PRs desde forks no permitidas');
+              await comment('PR cerrada: debe venir de una rama de este repositorio.');
+              return github.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });
+            }
+
+            const author = pr.user.login;
+            const isReviewer = (u) => u && u.type === 'User' && u.login !== author;
+            const meaningful = (t) => (t ?? '').replace(/\s+/g, ' ').trim().length >= MIN_LENGTH;
+
+            const [reviews, inline, general] = await Promise.all([
+              github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number: number }),
+              github.paginate(github.rest.pulls.listReviewComments, { owner, repo, pull_number: number }),
+              github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number }),
+            ]);
+
+            const decisions = new Map();
+            for (const r of reviews) {
+              if (!isReviewer(r.user)) continue;
+              if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(r.state)) {
+                decisions.set(r.user.login, r);
+              }
+            }
+
+            const commenters = new Set();
+            for (const r of reviews) if (isReviewer(r.user) && meaningful(r.body)) commenters.add(r.user.login);
+            for (const c of [...inline, ...general]) if (isReviewer(c.user) && meaningful(c.body)) commenters.add(c.user.login);
+
+            const latest = [...decisions.values()];
+            const blockers = latest.filter(r => r.state === 'CHANGES_REQUESTED').map(r => r.user.login);
+            const approvers = latest
+              .filter(r => r.state === 'APPROVED' && r.commit_id === pr.head.sha)
+              .map(r => r.user.login);
+            const valid = approvers.filter(u => commenters.has(u));
+            const missing = approvers.filter(u => !commenters.has(u));
+
+            if (blockers.length) {
+              return setStatus('failure', `Cambios solicitados por: ${blockers.join(', ')}`);
+            }
+
+            if (valid.length < REQUIRED) {
+              const extra = missing.length ? ` | sin comentario: ${missing.join(', ')}` : '';
+              return setStatus('pending', `${valid.length}/${REQUIRED} aprobaciones válidas${extra}`);
+            }
