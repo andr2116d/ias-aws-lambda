@@ -66,3 +66,7 @@ jobs:
       - name: Plan
         if: steps.config.outputs.has_config == 'true'
         run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Apply
+        if: steps.config.outputs.has_config == 'true'
+        run: terraform apply -input=false -no-color tfplan
