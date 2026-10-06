@@ -144,3 +144,40 @@ resource "aws_iam_role_policy" "deploy" {
   role   = each.value.id
   policy = data.aws_iam_policy_document.deploy_permissions[each.key].json
 }
+
+data "aws_iam_policy_document" "plan_trust" {
+  statement {
+    sid     = "SoloPullRequestsDelRepositorio"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["${local.github_repo_sub}:pull_request"]
+    }
+  }
+}
+
+resource "aws_iam_role" "plan" {
+  name                 = "${var.project}-gha-plan"
+  description          = "Rol de solo lectura que asume GitHub Actions para ejecutar terraform plan en pull requests."
+  assume_role_policy   = data.aws_iam_policy_document.plan_trust.json
+  max_session_duration = 3600
+}
+
+resource "aws_iam_role_policy_attachment" "plan_read_only" {
+  role       = aws_iam_role.plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
