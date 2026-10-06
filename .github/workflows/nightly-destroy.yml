@@ -1,0 +1,28 @@
+name: nightly-destroy
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch:
+    name: Destruir dev y qa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            for (const environment of ['dev', 'qa']) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner, repo,
+                workflow_id: 'destroy.yml',
+                ref: environment,
+                inputs: { environment, confirm: environment },
+              });
+              core.info(`destroy ${environment} solicitado`);
+            }
