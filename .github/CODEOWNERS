@@ -1,0 +1,4 @@
+# Pipeline, estado remoto y acceso a AWS: requieren aprobación del dueño
+/.github/              @andr2116d
+/bootstrap/            @andr2116d
+/envs/**/backend.tf    @andr2116d
