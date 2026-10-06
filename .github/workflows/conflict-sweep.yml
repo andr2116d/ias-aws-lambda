@@ -1,0 +1,64 @@
+name: conflict-sweep
+run-name: conflict-sweep ${{ inputs.branch || github.ref_name }}
+
+on:
+  push:
+    branches: [dev, qa, main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Rama base
+        required: true
+        type: choice
+        options: [dev, qa, main]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: conflict-sweep-${{ inputs.branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    name: Barrido de conflictos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        env:
+          BASE_BRANCH: ${{ inputs.branch || github.ref_name }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const base = process.env.BASE_BRANCH;
+
+            const open = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'open', base,
+            });
+
+            for (const item of open) {
+              let pr;
+              for (let i = 0; i < 10; i++) {
+                pr = (await github.rest.pulls.get({ owner, repo, pull_number: item.number })).data;
+                if (pr.mergeable !== null) break;
+                await new Promise(r => setTimeout(r, 3000));
+              }
+
+              if (pr.mergeable !== false) continue;
+
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number,
+                body: [
+                  `PR cerrada: \`${base}\` cambió y ahora hay conflictos.`,
+                  '',
+                  '```bash',
+                  'git fetch origin',
+                  `git rebase origin/${base}`,
+                  'git push --force-with-lease',
+                  '```',
+                ].join('\n'),
+              });
+              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'closed' });
+              core.info(`#${pr.number} cerrada por conflictos`);
+            }
