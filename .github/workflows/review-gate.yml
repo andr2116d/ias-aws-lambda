@@ -131,3 +131,15 @@ jobs:
             } catch (e) {
               return core.notice(`Merge pendiente: ${e.message}`);
             }
+
+            const ENVIRONMENTS = { dev: 'dev', qa: 'qa', main: 'prod' };
+            const environment = ENVIRONMENTS[pr.base.ref];
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo,
+              workflow_id: 'deploy.yml',
+              ref: pr.base.ref,
+              inputs: { environment },
+            });
+
+            await comment(`Mergeado con aprobaciones de ${valid.join(', ')}. Deploy a ${environment} iniciado.`);
