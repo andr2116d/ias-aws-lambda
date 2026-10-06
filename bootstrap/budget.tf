@@ -28,7 +28,7 @@ resource "aws_budgets_budget" "monthly" {
     subscriber_email_addresses = [var.budget_alert_email]
   }
 
- notification {
+  notification {
     comparison_operator        = "GREATER_THAN"
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
