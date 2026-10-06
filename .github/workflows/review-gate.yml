@@ -143,3 +143,10 @@ jobs:
             });
 
             await comment(`Mergeado con aprobaciones de ${valid.join(', ')}. Deploy a ${environment} iniciado.`);
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo,
+              workflow_id: 'conflict-sweep.yml',
+              ref: pr.base.ref,
+              inputs: { branch: pr.base.ref },
+            });
