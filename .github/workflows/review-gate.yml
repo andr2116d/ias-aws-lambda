@@ -107,3 +107,27 @@ jobs:
               const extra = missing.length ? ` | sin comentario: ${missing.join(', ')}` : '';
               return setStatus('pending', `${valid.length}/${REQUIRED} aprobaciones válidas${extra}`);
             }
+
+            for (let i = 0; pr.mergeable === null && i < 10; i++) {
+              await new Promise(r => setTimeout(r, 3000));
+              pr = await getPr();
+            }
+
+            if (pr.mergeable === false) {
+              await setStatus('failure', 'Conflictos con la rama destino');
+              await comment(`PR cerrada: tiene conflictos con \`${pr.base.ref}\`.`);
+              return github.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });
+            }
+
+            await setStatus('success', `${valid.length}/${REQUIRED} aprobaciones con comentario`);
+
+            try {
+              await github.rest.pulls.merge({
+                owner, repo, pull_number: number,
+                merge_method: 'merge',
+                sha: pr.head.sha,
+                commit_title: `${pr.title} (#${number})`,
+              });
+            } catch (e) {
+              return core.notice(`Merge pendiente: ${e.message}`);
+            }
