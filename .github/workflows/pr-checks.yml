@@ -99,6 +99,7 @@ jobs:
             for (const c of commits) {
               if (c.parents.length > 1) continue;
               check(c.commit.message, `Commit ${c.sha.slice(0, 7)}`);
+              if (!c.author) errors.push(`Commit ${c.sha.slice(0, 7)}: email no vinculado a una cuenta de GitHub`);
             }
 
             if (errors.length) return core.setFailed(errors.join('\n'));
