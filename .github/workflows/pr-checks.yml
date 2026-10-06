@@ -53,3 +53,52 @@ jobs:
               await github.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });
               return core.setFailed(`Conflictos con ${pr.base.ref}.`);
             }
+
+  convenciones:
+    name: Convenciones
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const base = pr.base.ref;
+            const head = pr.head.ref;
+
+            const TYPES = 'feat|fix|refactor|docs|ci|chore|test|style';
+            const SCOPES = 'network|storage|messaging|iam|lambda-upload|lambda-crop|apigw|observability|envs|ci';
+            const MESSAGE = new RegExp(`^(${TYPES})(\\((${SCOPES})\\))?: (.+)$`, 'u');
+            const BRANCH = new RegExp(`^(${TYPES})/[a-z0-9]+(-[a-z0-9]+)*$`);
+            const MAX_LENGTH = 100;
+            const SOURCE = { qa: 'dev', main: 'qa' };
+
+            const errors = [];
+
+            const check = (text, where) => {
+              const subject = text.split('\n')[0];
+              const match = subject.match(MESSAGE);
+              if (!match) return errors.push(`${where}: formato inválido "${subject}"`);
+              const description = match[4];
+              if (/^[A-ZÁÉÍÓÚÑ]/u.test(description)) errors.push(`${where}: debe empezar en minúscula`);
+              if (/[.\s]$/.test(description)) errors.push(`${where}: no debe terminar en punto`);
+              if (subject.length > MAX_LENGTH) errors.push(`${where}: supera ${MAX_LENGTH} caracteres`);
+            };
+
+            if (base === 'dev') {
+              if (!BRANCH.test(head)) errors.push(`Rama ${head}: formato tipo/scope-nombre`);
+            } else if (head !== SOURCE[base]) {
+              errors.push(`A ${base} solo se promueve desde ${SOURCE[base]}`);
+            }
+
+            check(pr.title, 'Título');
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner, repo, pull_number: pr.number,
+            });
+            for (const c of commits) {
+              if (c.parents.length > 1) continue;
+              check(c.commit.message, `Commit ${c.sha.slice(0, 7)}`);
+            }
+
+            if (errors.length) return core.setFailed(errors.join('\n'));
