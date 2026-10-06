@@ -1,0 +1,91 @@
+name: destroy
+run-name: destroy ${{ inputs.environment }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Entorno
+        required: true
+        type: choice
+        options: [dev, qa, prod]
+      confirm:
+        description: Escribe el nombre del entorno para confirmar
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    name: Destroy ${{ inputs.environment }}
+    if: >
+      inputs.confirm == inputs.environment &&
+      (github.actor == github.repository_owner || github.actor == 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      TF_IN_AUTOMATION: "true"
+    defaults:
+      run:
+        working-directory: envs/${{ inputs.environment }}
+    steps:
+      - name: Validar rama
+        working-directory: .
+        env:
+          ENV_NAME: ${{ inputs.environment }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          case "$ENV_NAME" in
+            dev)  EXPECTED=dev ;;
+            qa)   EXPECTED=qa ;;
+            prod) EXPECTED=main ;;
+          esac
+          if [ "$REF_NAME" != "$EXPECTED" ]; then
+            echo "::error::$ENV_NAME se destruye desde la rama $EXPECTED"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - id: config
+        working-directory: .
+        env:
+          ENV_NAME: ${{ inputs.environment }}
+        run: |
+          if compgen -G "envs/$ENV_NAME/*.tf" > /dev/null; then
+            echo "has_config=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_config=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::envs/$ENV_NAME sin configuración, no hay nada que destruir"
+          fi
+
+      - if: steps.config.outputs.has_config == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ vars.TF_VERSION }}
+          terraform_wrapper: false
+
+      - if: steps.config.outputs.has_config == 'true'
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Init
+        if: steps.config.outputs.has_config == 'true'
+        run: terraform init -input=false
+
+      - name: Plan destroy
+        if: steps.config.outputs.has_config == 'true'
+        run: terraform plan -destroy -input=false -no-color -out=tfplan
+
+      - name: Destroy
+        if: steps.config.outputs.has_config == 'true'
+        run: terraform apply -input=false -no-color tfplan
