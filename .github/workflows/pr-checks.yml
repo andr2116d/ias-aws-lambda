@@ -1,0 +1,55 @@
+name: pr-checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [dev, qa, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conflictos:
+    name: Conflictos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = context.payload.pull_request.number;
+
+            let pr;
+            for (let i = 0; i < 10; i++) {
+              pr = (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+              if (pr.mergeable !== null) break;
+              await new Promise(r => setTimeout(r, 3000));
+            }
+
+            if (pr.mergeable === null) {
+              return core.setFailed('No se pudo calcular el estado de conflictos.');
+            }
+
+            if (pr.mergeable === false) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: number,
+                body: [
+                  `PR cerrada: tiene conflictos con \`${pr.base.ref}\`.`,
+                  '',
+                  '```bash',
+                  'git fetch origin',
+                  `git rebase origin/${pr.base.ref}`,
+                  'git push --force-with-lease',
+                  '```',
+                ].join('\n'),
+              });
+              await github.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });
+              return core.setFailed(`Conflictos con ${pr.base.ref}.`);
+            }
