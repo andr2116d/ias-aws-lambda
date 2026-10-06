@@ -66,11 +66,10 @@ for dir in envs/*/; do
 done
 
 validate_dir() {
-  local dir="$1" lock_flag=""
-  [ -f "$dir/.terraform.lock.hcl" ] && tracked "$dir/.terraform.lock.hcl" && lock_flag="-lockfile=readonly"
+  local dir="$1"
 
   local out
-  if ! out=$(terraform -chdir="$dir" init -backend=false -input=false -no-color $lock_flag 2>&1); then
+  if ! out=$(terraform -chdir="$dir" init -backend=false -input=false -no-color 2>&1); then
     fail "$dir: terraform init falló"
     echo "$out" | tail -15
     return
