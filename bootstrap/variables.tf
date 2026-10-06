@@ -33,3 +33,14 @@ variable "environments" {
   type        = list(string)
   default     = ["dev", "qa", "prod"]
 }
+
+variable "budget_alert_email" {
+  description = "Correo que recibe las alertas de gasto. Se define en bootstrap.local.tfvars, que no se sube al repositorio."
+  type        = string
+}
+
+variable "monthly_budget_usd" {
+  description = "Límite mensual de gasto en USD para toda la cuenta."
+  type        = string
+  default     = "5"
+}
