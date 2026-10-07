@@ -99,6 +99,7 @@ jobs:
             for (const c of commits) {
               if (c.parents.length > 1) continue;
               check(c.commit.message, `Commit ${c.sha.slice(0, 7)}`);
+              if (!c.author) errors.push(`Commit ${c.sha.slice(0, 7)}: email no vinculado a una cuenta de GitHub`);
             }
 
             if (errors.length) return core.setFailed(errors.join('\n'));
@@ -207,3 +208,18 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
             }
+
+  estructura:
+    name: Estructura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ vars.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Estructura y validate
+        run: bash scripts/validate.sh
+
