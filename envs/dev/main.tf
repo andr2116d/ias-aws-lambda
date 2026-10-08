@@ -7,5 +7,5 @@ module "network" {
 
   name_prefix       = local.name_prefix
   aws_region        = var.aws_region
-  images_bucket_arn = "arn:aws:s3:::${local.name_prefix}-images-*"
+  images_bucket_arn = module.storage.bucket_arn
 }
