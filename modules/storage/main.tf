@@ -35,3 +35,35 @@ resource "aws_s3_bucket_versioning" "images" {
     status = "Enabled"
   }
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  rule {
+    id     = "expira-uploads"
+    status = "Enabled"
+
+    filter {
+      prefix = "uploads/"
+    }
+
+    expiration {
+      days = 30
+    }
+  }
+
+  rule {
+    id     = "expira-processed"
+    status = "Enabled"
+
+    filter {
+      prefix = "processed/"
+    }
+
+    expiration {
+      days = 90
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.images]
+}
