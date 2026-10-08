@@ -67,3 +67,24 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
 
   depends_on = [aws_s3_bucket_versioning.images]
 }
+
+resource "aws_sqs_queue_policy" "s3_to_queue" {
+  queue_url = var.queue_url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PermitirEnvioDesdeS3"
+        Effect    = "Allow"
+        Principal = { Service = "s3.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = var.queue_arn
+        Condition = {
+          ArnEquals    = { "aws:SourceArn" = aws_s3_bucket.images.arn }
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      }
+    ]
+  })
+}
