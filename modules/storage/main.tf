@@ -88,3 +88,15 @@ resource "aws_sqs_queue_policy" "s3_to_queue" {
     ]
   })
 }
+
+resource "aws_s3_bucket_notification" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  queue {
+    queue_arn     = var.queue_arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "uploads/"
+  }
+
+  depends_on = [aws_sqs_queue_policy.s3_to_queue]
+}
