@@ -2,7 +2,13 @@ data "archive_file" "crop" {
   type        = "zip"
   source_dir  = "${path.module}/../../src/crop-lambda"
   output_path = "${path.module}/crop-lambda.zip"
+
+  excludes = [
+    "crop-lambda.zip",
+    "package-lock.json"
+  ]
 }
+
 
 resource "aws_lambda_function" "crop" {
   function_name    = "${var.name_prefix}-crop"

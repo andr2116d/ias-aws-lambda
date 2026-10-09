@@ -51,7 +51,8 @@ exports.handler = async (event) => {
         .toBuffer();
 
       const fileName = key.split("/").pop().replace(/\.[^.]+$/, "");
-      const outputKey = `processed/${fileName}_circular.png`;
+      const outputPrefix = process.env.PROCESSED_PREFIX || "processed/";
+      const outputKey = `${outputPrefix}${fileName}_circular.png`;
 
       await s3.send(
         new PutObjectCommand({
