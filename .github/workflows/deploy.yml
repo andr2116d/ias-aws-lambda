@@ -50,6 +50,11 @@ jobs:
           terraform_wrapper: false
 
       - if: steps.config.outputs.has_config == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - if: steps.config.outputs.has_config == 'true'
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
