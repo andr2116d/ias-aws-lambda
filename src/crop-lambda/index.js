@@ -14,6 +14,8 @@ exports.handler = async (event) => {
   for (const record of event.Records || []) {
     try {
       const message = JSON.parse(record.body);
+      if (message.Event === "s3:TestEvent")
+        continue;
       const s3Record = message.Records?.[0];
 
       if (!s3Record) {
