@@ -1,3 +1,8 @@
+data "archive_file" "upload" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../src/upload-lambda"
+  output_path = "${path.module}/upload-lambda.zip"
+}
 
 resource "aws_lambda_function" "upload" {
   function_name    = "${var.name_prefix}-upload"
