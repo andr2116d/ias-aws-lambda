@@ -1,12 +1,17 @@
-const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
+
+const {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand
+} = require("@aws-sdk/client-s3");
+const sharp = require("sharp");
 
 const s3 = new S3Client({});
 
 exports.handler = async (event) => {
-  const records = event.Records || [];
   const batchItemFailures = [];
 
-  for (const record of records) {
+  for (const record of event.Records || []) {
     try {
       const message = JSON.parse(record.body);
       const s3Record = message.Records?.[0];
@@ -32,9 +37,34 @@ exports.handler = async (event) => {
         await response.Body.transformToByteArray()
       );
 
-      console.log(`Imagen descargada: ${key}, tamaño: ${imageBuffer.length}`);
+      const circularSvg = Buffer.from(
+        '<svg width="40" height="40"><circle cx="20" cy="20" r="20" fill="white"/></svg>'
+      );
+
+      const processedImage = await sharp(imageBuffer)
+        .resize(40, 40, { fit: "cover" })
+        .composite([{
+          input: circularSvg,
+          blend: "dest-in"
+        }])
+        .png()
+        .toBuffer();
+
+      const fileName = key.split("/").pop().replace(/\.[^.]+$/, "");
+      const outputKey = `processed/${fileName}_circular.png`;
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: outputKey,
+          Body: processedImage,
+          ContentType: "image/png"
+        })
+      );
+
+      console.log(`Imagen guardada: s3://${bucket}/${outputKey}`);
     } catch (error) {
-      console.error("Error al descargar la imagen:", error);
+      console.error("Error al procesar imagen:", error);
       batchItemFailures.push({ itemIdentifier: record.messageId });
     }
   }
