@@ -138,6 +138,11 @@ jobs:
         run: terraform fmt -check -recursive -diff
 
       - if: steps.env.outputs.has_config == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - if: steps.env.outputs.has_config == 'true'
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
