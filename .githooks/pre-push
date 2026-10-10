@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+TYPES='feat|fix|refactor|docs|ci|chore|test|style'
+SCOPES='network|storage|messaging|iam|lambda-upload|lambda-crop|apigw|observability|envs|ci'
+ZERO=0000000000000000000000000000000000000000
+
+errors=0
+fail() { echo "ERROR: $1"; errors=$((errors + 1)); }
+
+command -v terraform >/dev/null || { echo "ERROR: falta terraform"; exit 1; }
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue
+  branch="${remote_ref#refs/heads/}"
+
+  case "$branch" in
+    dev|qa|main) fail "no se permite push directo a $branch"; continue ;;
+  esac
+
+  echo "$branch" | grep -qE "^($TYPES)/[a-z0-9]+(-[a-z0-9]+)*$" || fail "rama $branch: formato tipo/scope-nombre"
+
+  if [ "$remote_sha" = "$ZERO" ]; then
+    range="origin/dev..$local_sha"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  for sha in $(git rev-list --no-merges "$range"); do
+    subject="$(git log -1 --format=%s "$sha")"
+    short="${sha:0:7}"
+    if ! echo "$subject" | grep -qE "^($TYPES)(\(($SCOPES)\))?: .+"; then
+      fail "commit $short: formato inválido \"$subject\""
+      continue
+    fi
+    desc="${subject#*: }"
+    echo "$desc" | grep -qE '^[A-Z]' && fail "commit $short: debe empezar en minúscula"
+    echo "$desc" | grep -qE '[.[:space:]]$' && fail "commit $short: no debe terminar en punto"
+    [ "${#subject}" -le 100 ] || fail "commit $short: supera 100 caracteres"
+  done
+done
+
+terraform fmt -check -recursive >/dev/null || fail "formato: ejecuta terraform fmt -recursive"
+
+"$ROOT/scripts/validate.sh" || errors=$((errors + 1))
+
+if [ "$errors" -gt 0 ]; then
+  echo "Push cancelado: $errors error(es)"
+  exit 1
+fi

@@ -1,5 +1,5 @@
 locals {
-  github_repo_sub = "repo:${var.github_owner}/${var.github_repo}"
+  github_repo_sub = "repo:${var.github_owner}@${var.github_owner_id}/${var.github_repo}@${var.github_repo_id}"
 }
 
 data "aws_iam_policy_document" "deploy_trust" {

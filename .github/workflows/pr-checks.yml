@@ -99,6 +99,7 @@ jobs:
             for (const c of commits) {
               if (c.parents.length > 1) continue;
               check(c.commit.message, `Commit ${c.sha.slice(0, 7)}`);
+              if (!c.author) errors.push(`Commit ${c.sha.slice(0, 7)}: email no vinculado a una cuenta de GitHub`);
             }
 
             if (errors.length) return core.setFailed(errors.join('\n'));
@@ -135,6 +136,25 @@ jobs:
 
       - name: Formato
         run: terraform fmt -check -recursive -diff
+
+      - if: steps.env.outputs.has_config == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Dependencias de las lambdas
+        if: steps.env.outputs.has_config == 'true'
+        working-directory: .
+        run: |
+          for pkg in src/*/package.json; do
+            [ -f "$pkg" ] || continue
+            dir="$(dirname "$pkg")"
+            if [ ! -f "$dir/package-lock.json" ]; then
+              echo "::error::$dir no tiene package-lock.json"
+              exit 1
+            fi
+            npm ci --omit=dev --os=linux --cpu=x64 --prefix "$dir"
+          done
 
       - if: steps.env.outputs.has_config == 'true'
         uses: aws-actions/configure-aws-credentials@v5
@@ -207,3 +227,18 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
             }
+
+  estructura:
+    name: Estructura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ vars.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Estructura y validate
+        run: bash scripts/validate.sh
+
