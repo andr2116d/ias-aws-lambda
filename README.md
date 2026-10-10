@@ -29,3 +29,26 @@ Las Lambdas corren en subredes privadas de dos zonas de disponibilidad y acceden
 | SQS | Cola Standard con visibility timeout de 360 s, retención de 1 día y long polling de 20 s. DLQ con retención de 14 días tras 3 fallos |
 | IAM | Un rol por Lambda con mínimo privilegio |
 | Observabilidad | Log groups con 14 días de retención y alarma sobre mensajes visibles en la DLQ |
+
+## Estructura del repositorio
+
+```
+bootstrap/   Estado remoto, OIDC, roles de despliegue y presupuesto (se aplica una sola vez)
+modules/     Un módulo Terraform por componente: network, storage, messaging, iam,
+             observability, lambda-upload, lambda-crop, apigw
+envs/        Composición de los módulos por entorno: dev, qa, prod
+src/         Código de las Lambdas: upload-lambda, crop-lambda
+scripts/     Validación de estructura usada por el pipeline y el hook local
+.githooks/   Hook pre-push
+.github/     Workflows, CODEOWNERS y plantilla de pull request
+```
+
+## Entornos
+
+| Entorno | Rama | Despliegue |
+|---|---|---|
+| DEV | `dev` | Automático al mergear una PR |
+| QA | `qa` | Automático al mergear la promoción desde `dev` |
+| PROD | `main` | Al mergear la promoción desde `qa`, con aprobación del responsable |
+
+Cada entorno tiene su propio estado en S3 y su propio rol de despliegue. Los recursos se nombran con el prefijo `image-processor-<entorno>`.
