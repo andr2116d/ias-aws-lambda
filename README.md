@@ -81,3 +81,24 @@ El acceso a AWS usa OIDC: GitHub obtiene credenciales temporales y el repositori
 - Commits con formato `tipo(scope): descripción`, en minúscula y sin punto final.
 - Sin push directo a `dev`, `qa` ni `main`.
 - Hook local: `git config core.hooksPath .githooks`.
+
+## Uso
+
+```bash
+API=$(aws apigatewayv2 get-apis --query "Items[?Name=='image-processor-dev-api'].ApiEndpoint" --output text)
+curl -X POST "$API/upload" -F "file=@foto.jpg"
+```
+
+La respuesta incluye la key de la imagen en `uploads/`. Segundos después aparece `processed/<nombre>_circular.png` en el bucket.
+
+Por un límite de Lambda en invocaciones síncronas, el tamaño real admitido es cercano a 4,5 MB aunque API Gateway acepta hasta 10 MB.
+
+## Equipo
+
+| Integrante | Responsabilidad |
+|---|---|
+| Vargas Villanueva, Johel Andrée | Bootstrap, pipeline, network, entornos qa y prod |
+| Paredes Paz, Valentino Elfre | storage |
+| Alcantara Ramos, Esthefany Xiomara | messaging, observability |
+| Castillo Solano, Mathías Simon | lambda-upload, apigw |
+| Poémape Saldaña, María Teresa | iam, lambda-crop |
