@@ -52,3 +52,32 @@ scripts/     Validación de estructura usada por el pipeline y el hook local
 | PROD | `main` | Al mergear la promoción desde `qa`, con aprobación del responsable |
 
 Cada entorno tiene su propio estado en S3 y su propio rol de despliegue. Los recursos se nombran con el prefijo `image-processor-<entorno>`.
+
+## Pipeline
+
+```mermaid
+flowchart LR
+  B[Rama de trabajo] --> P[Pull request]
+  P --> C[pr-checks]
+  C --> R[4 aprobaciones con comentario]
+  R --> M[Merge automático]
+  M --> D[deploy]
+```
+
+| Workflow | Función |
+|---|---|
+| `pr-checks` | Conflictos, convenciones de commits y ramas, estructura de módulos y entornos, `fmt`, `validate` y `plan` publicado en la PR |
+| `review-gate` | Exige 4 aprobaciones sobre el último commit, cada una con comentario, y mergea la PR |
+| `deploy` | Instala las dependencias de las Lambdas y ejecuta `init`, `plan` y `apply` en el entorno de la rama |
+| `conflict-sweep` | Cierra las PRs que quedan en conflicto después de un merge |
+| `destroy` | Destruye un entorno. Solo lo ejecuta el responsable |
+| `nightly-destroy` | Destruye dev y qa cada noche para controlar costos |
+
+El acceso a AWS usa OIDC: GitHub obtiene credenciales temporales y el repositorio no guarda access keys. Las pull requests usan un rol de solo lectura.
+
+## Reglas de trabajo
+
+- Ramas `tipo/scope-nombre`, creadas desde `dev`.
+- Commits con formato `tipo(scope): descripción`, en minúscula y sin punto final.
+- Sin push directo a `dev`, `qa` ni `main`.
+- Hook local: `git config core.hooksPath .githooks`.
