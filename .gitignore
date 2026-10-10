@@ -24,3 +24,5 @@ npm-debug.log*
 .idea/
 .env
 .env.*
+# Lock files solo en envs/ y bootstrap/
+modules/**/.terraform.lock.hcl

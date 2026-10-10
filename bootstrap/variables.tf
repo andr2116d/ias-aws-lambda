@@ -44,3 +44,15 @@ variable "monthly_budget_usd" {
   type        = string
   default     = "5"
 }
+
+variable "github_owner_id" {
+  description = "ID numérico del dueño del repositorio en GitHub."
+  type        = string
+  default     = "168318341"
+}
+
+variable "github_repo_id" {
+  description = "ID numérico del repositorio en GitHub."
+  type        = string
+  default     = "1407843817"
+}
